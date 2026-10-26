@@ -1,0 +1,1236 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#1a0e07">
+<title>ビール注ぎ名人</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    overflow: hidden;
+    background: #140b06;
+    color: #fff;
+    font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Noto Sans JP", "Yu Gothic", Meiryo, sans-serif;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+  }
+  canvas#cv {
+    position: fixed; inset: 0;
+    width: 100%; height: 100%;
+    display: block;
+    touch-action: none;
+  }
+  .hidden { display: none !important; }
+
+  /* ---------- 共通ボタン ---------- */
+  .btn {
+    font-family: inherit;
+    font-size: 20px; font-weight: 800;
+    padding: 14px 38px;
+    border: none; border-radius: 999px;
+    background: linear-gradient(#ffd75a, #f29a12);
+    color: #3a1d05;
+    box-shadow: 0 5px 0 #a85d06, 0 10px 20px rgba(0,0,0,.45);
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: transform .06s, box-shadow .06s, opacity .2s;
+  }
+  .btn:active { transform: translateY(4px); box-shadow: 0 1px 0 #a85d06, 0 4px 10px rgba(0,0,0,.4); }
+  .btn:disabled { opacity: .4; cursor: default; }
+  .btn:disabled:active { transform: none; box-shadow: 0 5px 0 #a85d06, 0 10px 20px rgba(0,0,0,.45); }
+
+  /* ---------- HUD ---------- */
+  #hud {
+    position: fixed; left: 0; right: 0; top: 0;
+    margin: 0 auto; max-width: 520px;
+    padding: calc(env(safe-area-inset-top) + 10px) 12px 8px;
+    display: flex; flex-direction: column; gap: 6px;
+    pointer-events: none;
+    z-index: 5;
+  }
+  #boss {
+    align-self: flex-start;
+    background: #fffaf0; color: #3a2216;
+    border-radius: 14px;
+    padding: 7px 13px;
+    font-size: 14px; font-weight: 800;
+    box-shadow: 0 3px 10px rgba(0,0,0,.35);
+    position: relative;
+    margin-bottom: 4px;
+  }
+  #boss::after {
+    content: ""; position: absolute; left: 18px; bottom: -7px;
+    border: 7px solid transparent; border-bottom: none;
+    border-top-color: #fffaf0;
+  }
+  .gauge {
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(0,0,0,.42);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 12px;
+    padding: 7px 12px;
+  }
+  .glabel { width: 5.2em; font-size: 13px; font-weight: 800; line-height: 1.15; white-space: nowrap; }
+  .glabel small { display: block; font-size: 10px; font-weight: 600; opacity: .7; }
+  .bar {
+    flex: 1; height: 13px; position: relative;
+    background: rgba(255,255,255,.14);
+    border-radius: 7px;
+  }
+  .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 7px; }
+  #foamFill { background: linear-gradient(90deg, #f3e4c0, #ffffff); }
+  #volFill { background: linear-gradient(90deg, #b8650a, #f6b93b); }
+  #timeFill { background: linear-gradient(90deg, #7ec850, #b7e07a); }
+  .mark {
+    position: absolute; top: -5px; bottom: -5px; width: 4px; margin-left: -2px;
+    background: #ff5a5a; border-radius: 2px;
+    box-shadow: 0 0 6px rgba(255,90,90,.8);
+  }
+  .gval { width: 3.3em; text-align: right; font-size: 17px; font-weight: 900; font-variant-numeric: tabular-nums; }
+
+  #doneBtn {
+    position: fixed; left: 50%;
+    bottom: calc(env(safe-area-inset-bottom) + 18px);
+    transform: translateX(-50%);
+    z-index: 6;
+    min-width: 200px;
+  }
+  #doneBtn:active { transform: translateX(-50%) translateY(4px); }
+  #doneBtn:disabled:active { transform: translateX(-50%); }
+
+  /* ---------- 画面オーバーレイ ---------- */
+  .screen {
+    position: fixed; inset: 0; z-index: 10;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px 18px;
+    text-align: center;
+  }
+  #titleScreen { background: radial-gradient(ellipse at 50% 40%, rgba(40,20,8,.55), rgba(10,5,2,.85)); }
+  #resultScreen { background: rgba(10,5,2,.62); }
+
+  .tbox { max-width: 400px; width: 100%; animation: pop .5s ease-out both; }
+  .tsub { font-size: 14px; font-weight: 700; color: #f6d9a8; letter-spacing: .1em; }
+  h1 {
+    margin: 8px 0 10px;
+    font-size: clamp(46px, 15vw, 76px);
+    line-height: 1.04; font-weight: 900; letter-spacing: .04em;
+    color: #ffd54a;
+    text-shadow: 0 4px 0 #a0520a, 0 10px 24px rgba(0,0,0,.6);
+  }
+  .tgold {
+    display: inline-block;
+    font-size: 15px; font-weight: 800;
+    background: rgba(255,255,255,.95); color: #6a3a0c;
+    padding: 6px 14px; border-radius: 999px;
+    margin-bottom: 18px;
+  }
+  .howto {
+    text-align: left; margin: 0 auto 26px; padding: 14px 16px 14px 36px;
+    background: rgba(0,0,0,.45); border: 1px solid rgba(255,255,255,.12);
+    border-radius: 14px; font-size: 14px; line-height: 1.75; font-weight: 600;
+  }
+  .howto b { color: #ffd54a; }
+
+  .card {
+    width: min(92vw, 380px);
+    background: linear-gradient(#fffaf0, #f4e3c0);
+    color: #3a2216;
+    border-radius: 22px;
+    padding: 22px 20px 18px;
+    box-shadow: 0 16px 40px rgba(0,0,0,.55);
+  }
+  .anim .card { animation: pop .4s ease-out both; }
+  #rHead { font-size: 15px; font-weight: 800; letter-spacing: .15em; color: #8a5a20; }
+  .score { font-size: 72px; font-weight: 900; line-height: 1.05; margin: 2px 0; font-variant-numeric: tabular-nums; }
+  .score small { font-size: 30px; margin-left: 2px; }
+  #rRatio { font-size: 18px; font-weight: 800; }
+  #rVol { font-size: 12px; font-weight: 600; opacity: .7; margin-top: 2px; }
+  #rTitle {
+    display: inline-block;
+    margin: 14px 0 10px;
+    padding: 7px 18px;
+    background: #3a2216;
+    border-radius: 12px;
+    font-size: 24px; font-weight: 900;
+  }
+  #rComment {
+    font-size: 15px; font-weight: 700; line-height: 1.6;
+    background: #fff; border-radius: 12px; padding: 10px 12px;
+    margin-bottom: 16px;
+  }
+  .anim #rTitle   { animation: fadeUp .45s 1.15s ease-out both; }
+  .anim #rComment { animation: fadeUp .45s 1.35s ease-out both; }
+  .row { display: flex; gap: 10px; justify-content: center; }
+  .row .btn { flex: 1; padding: 13px 10px; font-size: 17px; }
+  #shareBtn { background: linear-gradient(#333, #000); color: #fff; box-shadow: 0 5px 0 #555, 0 10px 20px rgba(0,0,0,.35); }
+  #shareBtn:active { box-shadow: 0 1px 0 #555; }
+  .link {
+    margin-top: 14px; background: none; border: none;
+    font-family: inherit; font-size: 13px; font-weight: 700;
+    color: #8a5a20; text-decoration: underline; cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  @keyframes pop { from { transform: scale(.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  @keyframes fadeUp { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+</style>
+</head>
+<body>
+
+<canvas id="cv"></canvas>
+
+<!-- プレイ中HUD -->
+<div id="hud" class="hidden">
+  <div id="boss">部長「おう、一杯頼むよ」</div>
+  <div class="gauge">
+    <div class="glabel">泡の割合<small>目標 30%</small></div>
+    <div class="bar"><div class="fill" id="foamFill"></div><div class="mark" style="left:30%"></div></div>
+    <div class="gval" id="foamVal">0%</div>
+  </div>
+  <div class="gauge">
+    <div class="glabel">合計量<small>赤線＝目標ライン</small></div>
+    <div class="bar"><div class="fill" id="volFill"></div><div class="mark" id="volMark"></div></div>
+    <div class="gval" id="volVal">0%</div>
+  </div>
+  <div class="gauge">
+    <div class="glabel">残り時間<small>部長の我慢</small></div>
+    <div class="bar"><div class="fill" id="timeFill"></div></div>
+    <div class="gval" id="timeVal">20秒</div>
+  </div>
+</div>
+<button id="doneBtn" class="btn hidden" type="button">完成！</button>
+
+<!-- タイトル画面 -->
+<div id="titleScreen" class="screen">
+  <div class="tbox">
+    <div class="tsub">〜 新入社員の必修スキル 〜</div>
+    <h1>ビール<br>注ぎ名人</h1>
+    <div class="tgold">泡 3 ： ビール 7 の黄金比を目指せ！</div>
+    <ol class="howto">
+      <li>画面を<b>押している間だけ</b>瓶が傾いて注がれる</li>
+      <li><b>長く押すほど勢いが増し</b>、泡がたくさん立つ</li>
+      <li>赤い<b>目標ライン</b>ぴったりで「完成！」を押せ</li>
+      <li><b>制限時間20秒</b>。過ぎると強制的に判定される</li>
+    </ol>
+    <button id="startBtn" class="btn" type="button">注ぎ始める</button>
+  </div>
+</div>
+
+<!-- 結果画面 -->
+<div id="resultScreen" class="screen hidden">
+  <div class="card">
+    <div id="rHead">結果発表</div>
+    <div class="score"><span id="rScore">0</span><small>%</small></div>
+    <div id="rRatio">泡 0 ： ビール 0</div>
+    <div id="rVol">注いだ量 0%（目標 0%）</div>
+    <div id="rTitle">称号</div>
+    <div id="rComment">部長「…」</div>
+    <div class="row">
+      <button id="retryBtn" class="btn" type="button">もう一度</button>
+      <button id="shareBtn" class="btn" type="button">𝕏 でシェア</button>
+    </div>
+    <button id="toTitleBtn" class="link" type="button">タイトルへ戻る</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ====== DOM ======
+  const $ = (id) => document.getElementById(id);
+  const cv = $('cv');
+  const ctx = cv.getContext('2d');
+  const elTitle = $('titleScreen'), elHud = $('hud'), elDone = $('doneBtn'), elResult = $('resultScreen');
+  const elBoss = $('boss'), elFoamFill = $('foamFill'), elFoamVal = $('foamVal');
+  const elVolFill = $('volFill'), elVolVal = $('volVal'), elVolMark = $('volMark');
+  const elTimeFill = $('timeFill'), elTimeVal = $('timeVal');
+  const elRHead = $('rHead'), elRScore = $('rScore'), elRRatio = $('rRatio'), elRVol = $('rVol');
+  const elRTitle = $('rTitle'), elRComment = $('rComment');
+
+  // ====== 定数（ゲームバランス） ======
+  const MAX_FLOW = 0.34;       // 最大流量（グラス容量/秒）
+  const TILT_UP = 0.6;         // 押している間の傾き増加速度（/秒）
+  const TILT_DOWN = 2.8;       // 離したときの戻り速度（/秒）
+  const POUR_TH = 0.35;        // この傾きを超えると注がれ始める
+  const FRESH_MAX = 0.025;     // 落ち着いて減る泡の最大量（数mm分）
+  const SETTLE_RATE = 0.008;   // 泡が落ち着く速度（/秒）
+  const OVERFLOW_TIME = 1.8;   // 溢れ演出の時間（秒）
+  const TIME_LIMIT = 20;       // 制限時間（秒）
+
+  const SHARE_URL = 'https://example.com/beer-game';
+  const FONT = '"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic",Meiryo,sans-serif';
+
+  const RANKS = [
+    { min: 95, title: '伝説の注ぎ手',       color: '#ffd54a', comment: '完璧だ…！君、来月から社長秘書だ。' },
+    { min: 85, title: '部長のお気に入り',   color: '#ffb347', comment: 'わかってるねえ。次の査定、期待していいぞ。' },
+    { min: 70, title: '一人前',             color: '#9be37a', comment: 'うむ、悪くない。社会人として合格だ。' },
+    { min: 50, title: '見習い',             color: '#8ecbff', comment: '…まあ、気持ちは受け取っておくよ。' },
+    { min: 0,  title: '泡だらけで懲戒解雇', color: '#ff7b7b', comment: '明日から来なくていいよ。' },
+  ];
+
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const rand = (a, b) => a + Math.random() * (b - a);
+
+  // ====== レイアウト ======
+  let W = 0, H = 0, DPR = 1;
+  const L = {};
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2.5);
+    W = Math.max(1, window.innerWidth);
+    H = Math.max(1, window.innerHeight);
+    cv.width = Math.round(W * DPR);
+    cv.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+    const gwT = Math.max(90, Math.min(W * 0.42, H * 0.25, 240));
+    L.gwT = gwT;
+    L.gwB = gwT * 0.74;
+    L.gh = gwT * 1.6;
+    L.s = gwT / 170;
+    L.bottom = H - Math.max(100, H * 0.14);
+    L.top = L.bottom - L.gh;
+    L.cx = W / 2 - gwT * 0.22;
+    L.wall = Math.max(2, 3 * L.s);
+    L.base = Math.max(8, L.gh * 0.06);
+    L.innerBottom = L.bottom - L.base;
+    L.innerH = L.innerBottom - L.top - 2 * L.s;
+    L.m = gwT * 0.62;
+    L.px = L.cx + gwT / 2 + L.m * 0.5;
+    L.py = L.top - L.m * 0.62;
+  }
+
+  function outerHalf(y) {
+    const t = clamp((L.bottom - y) / L.gh, 0, 1);
+    return L.gwB / 2 + (L.gwT / 2 - L.gwB / 2) * t;
+  }
+  function innerHalf(y) { return outerHalf(y) - L.wall; }
+  function yAt(f) { return L.innerBottom - f * L.innerH; }
+
+  // ====== ゲーム状態 ======
+  // state: 'title' | 'play' | 'overflow' | 'result'
+  const G = {
+    state: 'title',
+    beer: 0, foam: 0, fresh: 0,
+    tilt: 0, holding: false,
+    flow: 0, intensity: 0,
+    target: 0.84,
+    time: 0, idleT: 0,
+    timeLeft: TIME_LIMIT, timeUp: false,
+    overflowT: 0, overflowed: false,
+    pouredEver: false,
+    bubAcc: 0, splAcc: 0,
+    streamEnd: null,
+    result: null, shownScore: 0,
+    shareHref: '',
+  };
+  let activePointer = null;
+
+  const bubbles = [], splashes = [], foamDots = [], drops = [];
+  for (let i = 0; i < 20; i++) drops.push({ u: rand(-0.85, 0.85), v: rand(0.08, 0.92), r: rand(0.8, 2.1) });
+
+  function initFoamDots() {
+    foamDots.length = 0;
+    for (let i = 0; i < 46; i++) {
+      foamDots.push({ u: Math.random(), v: Math.random(), r: rand(1.2, 3.6), ph: Math.random() * 6.28 });
+    }
+  }
+
+  let hudCache = {};
+
+  function resetGame() {
+    G.beer = 0; G.foam = 0; G.fresh = 0;
+    G.tilt = 0; G.holding = false;
+    G.flow = 0; G.intensity = 0;
+    G.idleT = 0; G.overflowT = 0; G.overflowed = false;
+    G.timeLeft = TIME_LIMIT; G.timeUp = false;
+    G.pouredEver = false;
+    G.bubAcc = 0; G.splAcc = 0;
+    G.streamEnd = null;
+    G.result = null; G.shownScore = 0;
+    G.target = Math.round((0.80 + Math.random() * 0.07) * 100) / 100;
+    bubbles.length = 0; splashes.length = 0;
+    initFoamDots();
+    activePointer = null;
+    hudCache = {};
+  }
+
+  function setScreen(s) {
+    G.state = s;
+    elTitle.classList.toggle('hidden', s !== 'title');
+    elHud.classList.toggle('hidden', !(s === 'play' || s === 'overflow'));
+    elDone.classList.toggle('hidden', s !== 'play');
+    elResult.classList.toggle('hidden', s !== 'result');
+  }
+
+  function startGame() {
+    resetGame();
+    elVolMark.style.left = (G.target * 100) + '%';
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    setScreen('play');
+  }
+
+  function goTitle() {
+    resetGame();
+    setScreen('title');
+  }
+
+  // ====== 瓶の角度・注ぎ口 ======
+  function tiltAngle() {
+    const e = G.tilt;
+    return -(20 + 92 * e) * Math.PI / 180;
+  }
+  function mouthPos() {
+    const th = tiltAngle();
+    return { x: L.px + L.m * Math.sin(th), y: L.py - L.m * Math.cos(th) };
+  }
+
+  // ====== 更新処理 ======
+  function update(dt) {
+    // 傾き
+    if (G.state === 'play' && G.holding) G.tilt = Math.min(1, G.tilt + dt * TILT_UP);
+    else G.tilt = Math.max(0, G.tilt - dt * TILT_DOWN);
+
+    if (G.state === 'play') {
+      let inten = 0, flow = 0;
+      if (G.holding && G.tilt > POUR_TH) {
+        inten = (G.tilt - POUR_TH) / (1 - POUR_TH);
+        flow = MAX_FLOW * (0.12 + 0.88 * inten);
+      }
+      G.intensity = inten;
+      G.flow = flow;
+
+      if (flow > 0) {
+        const dv = flow * dt;
+        const ff = 0.07 + 0.85 * Math.pow(inten, 1.05); // 勢いが強いほど泡になる割合が増える
+        G.beer += dv * (1 - ff);
+        G.foam += dv * ff;
+        G.fresh = Math.min(FRESH_MAX, G.fresh + dv * ff * 0.5);
+        G.pouredEver = true;
+        G.idleT = 0;
+      } else {
+        G.idleT += dt;
+        // 注いでいない間、泡が少しずつ落ち着く（最大 FRESH_MAX 分）
+        if (G.fresh > 0 && G.foam > 0) {
+          const d = Math.min(G.fresh, G.foam, SETTLE_RATE * dt);
+          G.fresh -= d;
+          G.foam -= d;
+          G.beer += d * 0.3;
+        }
+      }
+
+      if (G.beer + G.foam > 1.0) triggerOverflow();
+
+      // 制限時間
+      if (G.state === 'play') {
+        G.timeLeft -= dt;
+        if (G.timeLeft <= 0) {
+          G.timeLeft = 0;
+          G.timeUp = true;
+          finish(false);
+        }
+      }
+    } else if (G.state === 'overflow') {
+      G.flow = 0; G.intensity = 0;
+      G.overflowT += dt;
+      if (G.overflowT >= OVERFLOW_TIME) finish(true);
+    } else {
+      G.flow = 0; G.intensity = 0;
+    }
+
+    // 注ぎの着水点
+    if (G.flow > 0) {
+      const mp = mouthPos();
+      const surfY = (G.beer + G.foam) > 0.002 ? yAt(G.beer + G.foam) : L.innerBottom;
+      G.streamEnd = { mx: mp.x, my: mp.y, x: mp.x - (3 + 6 * G.intensity) * L.s, y: surfY };
+    } else {
+      G.streamEnd = null;
+    }
+
+    updateParticles(dt);
+  }
+
+  function triggerOverflow() {
+    G.state = 'overflow';
+    G.overflowT = 0;
+    G.overflowed = true;
+    G.holding = false;
+    activePointer = null;
+    G.flow = 0; G.intensity = 0;
+    if (G.beer > 1) { G.beer = 1; G.foam = 0; }
+    else G.foam = Math.max(0, 1 - G.beer);
+    setScreen('overflow');
+    try { if (navigator.vibrate) navigator.vibrate([80, 40, 120]); } catch (e) { /* 無視 */ }
+  }
+
+  function spawnBubble(nearStream) {
+    const beerY = yAt(G.beer);
+    const ib = L.innerBottom;
+    if (ib - beerY < 6) return;
+    let y, u;
+    if (nearStream && G.streamEnd) {
+      y = rand(beerY + 4, Math.max(beerY + 5, beerY + (ib - beerY) * 0.8));
+      const hw = innerHalf(y);
+      u = clamp((G.streamEnd.x + rand(-14, 14) * L.s - L.cx) / hw * 0.5 + 0.5, 0.05, 0.95);
+    } else {
+      y = ib - rand(1, 6);
+      u = rand(0.1, 0.9);
+    }
+    bubbles.push({ u, y, r: rand(0.8, 2.2) * L.s, vy: rand(18, 40) * L.s, ph: Math.random() * 6.28 });
+  }
+
+  function updateParticles(dt) {
+    // 泡粒（液体中）
+    const rate = (G.beer > 0.02 ? 6 : 0) + (G.flow > 0 ? 20 + 110 * G.intensity : 0);
+    G.bubAcc += rate * dt;
+    while (G.bubAcc >= 1) {
+      G.bubAcc -= 1;
+      if (bubbles.length < 240) spawnBubble(G.flow > 0 && Math.random() < 0.8);
+    }
+    const beerY = yAt(G.beer);
+    for (let i = bubbles.length - 1; i >= 0; i--) {
+      const b = bubbles[i];
+      b.vy += 30 * L.s * dt;
+      b.y -= b.vy * dt;
+      if (b.y < beerY + b.r) bubbles.splice(i, 1);
+    }
+
+    // しぶき
+    if (G.streamEnd) {
+      G.splAcc += (10 + 40 * G.intensity) * dt;
+      while (G.splAcc >= 1) {
+        G.splAcc -= 1;
+        if (splashes.length < 160) {
+          const life = rand(0.25, 0.5);
+          splashes.push({
+            x: G.streamEnd.x + rand(-3, 3) * L.s,
+            y: G.streamEnd.y,
+            vx: rand(-70, 70) * L.s,
+            vy: -rand(40, 160) * L.s * (0.4 + G.intensity),
+            life, max: life,
+            r: rand(1, 2.4) * L.s,
+            c: Math.random() < 0.5 + G.intensity * 0.3 ? '255,246,224' : '242,179,58',
+          });
+        }
+      }
+    }
+    for (let i = splashes.length - 1; i >= 0; i--) {
+      const p = splashes[i];
+      p.vy += 900 * L.s * dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.life -= dt;
+      if (p.life <= 0) splashes.splice(i, 1);
+    }
+
+    // 泡のつぶつぶがはじけて入れ替わる
+    if (foamDots.length && Math.random() < dt * 4) {
+      const d = foamDots[(Math.random() * foamDots.length) | 0];
+      d.u = Math.random(); d.v = Math.random(); d.r = rand(1.2, 3.6); d.ph = Math.random() * 6.28;
+    }
+  }
+
+  // ====== 採点 ======
+  function getFlaw(total, ratio) {
+    if (total < 0.03) return 'まだ一滴も注いでないじゃないか。';
+    if (ratio > 0.45) return '泡しか飲めないじゃないか！';
+    if (total < G.target - 0.06) return 'これっぽっち？ケチと言われるぞ。';
+    if (ratio < 0.15) return '泡がない！これじゃただの麦ジュースだよ。';
+    if (total > G.target + 0.05) return 'なみなみすぎて持ち上げられないよ…。';
+    if (ratio > 0.37) return 'ちょっと泡が多いなあ。';
+    if (ratio < 0.23) return 'もうちょっと泡がほしいねえ。';
+    if (total < G.target - 0.02) return 'もう少し入れてくれてもいいんだぞ？';
+    return null;
+  }
+
+  function finish(over) {
+    if (G.state !== 'play' && G.state !== 'overflow') return;
+    G.holding = false;
+    activePointer = null;
+    G.flow = 0; G.intensity = 0;
+    G.streamEnd = null;
+
+    const total = G.beer + G.foam;
+    const ratio = total > 0.001 ? G.foam / total : 0;
+    let score = 0, title, color, comment, head;
+
+    if (over) {
+      score = 0;
+      title = '溢れさせて左遷';
+      color = '#ff7b7b';
+      comment = '部長のズボンがビールまみれ…来月から離島支社へようこそ。';
+      head = '大失敗…！';
+    } else {
+      if (total >= 0.03) {
+        const vs = clamp(1 - Math.abs(total - G.target) / 0.22, 0, 1);
+        const fs = clamp(1 - Math.abs(ratio - 0.30) / 0.25, 0, 1);
+        score = Math.round(100 * Math.sqrt(vs * fs));
+      }
+      score = clamp(score, 0, 100);
+      if (G.timeUp) score = Math.min(score, 49); // 時間切れは高得点なし
+      const rank = RANKS.find((r) => score >= r.min) || RANKS[RANKS.length - 1];
+      title = rank.title;
+      color = rank.color;
+      const flaw = getFlaw(total, ratio);
+      if (G.timeUp) {
+        comment = '遅い！ビールは鮮度が命だぞ。';
+        head = '時間切れ！';
+      } else if (score >= 85 || !flaw) { comment = rank.comment; head = score >= 85 ? 'お見事！' : score >= 50 ? '結果発表' : '残念…'; }
+      else if (score < 50) { comment = flaw + '…明日から来なくていいよ。'; head = '残念…'; }
+      else { comment = flaw; head = '結果発表'; }
+    }
+
+    const f = total > 0.001 ? Math.round(ratio * 100) : 0;
+    const b = total > 0.001 ? 100 - f : 0;
+
+    G.result = { score, title, color, comment, f, b, total };
+    G.shownScore = 0;
+
+    elRHead.textContent = head;
+    elRScore.textContent = '0';
+    elRRatio.textContent = '泡 ' + f + ' ： ビール ' + b;
+    elRVol.textContent = '注いだ量 ' + Math.round(Math.min(total, 1) * 100) + '%（目標 ' + Math.round(G.target * 100) + '%）';
+    elRTitle.textContent = title;
+    elRTitle.style.color = color;
+    elRComment.textContent = '部長「' + comment + '」';
+
+    const text = '🍺「ビール注ぎ名人」で' + score + '%を記録！\n称号：' + title + '\n泡：ビール＝' + f + '：' + b + '\n#ビール注ぎ名人';
+    G.shareHref = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(text) + '&url=' + encodeURIComponent(SHARE_URL);
+
+    setScreen('result');
+    elResult.classList.remove('anim');
+    void elResult.offsetWidth; // アニメーション再始動
+    elResult.classList.add('anim');
+  }
+
+  function updateResultAnim(dt) {
+    if (G.state !== 'result' || !G.result) return;
+    const target = G.result.score;
+    if (G.shownScore < target) {
+      G.shownScore = Math.min(target, G.shownScore + Math.max(target, 1) * dt / 1.1);
+    }
+    const v = String(Math.floor(G.shownScore >= target ? target : G.shownScore));
+    if (hudCache.rScore !== v) { hudCache.rScore = v; elRScore.textContent = v; }
+  }
+
+  // ====== HUD ======
+  function setIfChanged(key, el, prop, val) {
+    if (hudCache[key] !== val) {
+      hudCache[key] = val;
+      if (prop === 'text') el.textContent = val;
+      else if (prop === 'width') el.style.width = val;
+      else if (prop === 'color') el.style.color = val;
+      else if (prop === 'disabled') el.disabled = val;
+    }
+  }
+
+  function updateHUD() {
+    if (G.state !== 'play' && G.state !== 'overflow') return;
+    const total = G.beer + G.foam;
+    const ratio = total > 0.005 ? G.foam / total : 0;
+
+    setIfChanged('foamW', elFoamFill, 'width', (ratio * 100).toFixed(1) + '%');
+    setIfChanged('foamV', elFoamVal, 'text', Math.round(ratio * 100) + '%');
+    setIfChanged('foamC', elFoamVal, 'color',
+      total < 0.02 ? '#ffffff' : Math.abs(ratio - 0.30) <= 0.04 ? '#9be37a' : ratio > 0.45 ? '#ff8a6a' : '#ffffff');
+
+    setIfChanged('volW', elVolFill, 'width', (Math.min(total, 1) * 100).toFixed(1) + '%');
+    setIfChanged('volV', elVolVal, 'text', Math.round(Math.min(total, 1) * 100) + '%');
+    setIfChanged('volC', elVolVal, 'color',
+      Math.abs(total - G.target) <= 0.03 ? '#9be37a' : total > G.target + 0.03 ? '#ff8a6a' : '#ffffff');
+
+    setIfChanged('done', elDone, 'disabled', total < 0.02);
+
+    setIfChanged('timeW', elTimeFill, 'width', (G.timeLeft / TIME_LIMIT * 100).toFixed(1) + '%');
+    setIfChanged('timeV', elTimeVal, 'text', Math.ceil(G.timeLeft) + '秒');
+    setIfChanged('timeC', elTimeVal, 'color', G.timeLeft <= 5 ? '#ff8a6a' : '#ffffff');
+    const timeBg = G.timeLeft <= 5 ? 'linear-gradient(90deg, #e0483e, #ff8a6a)' : 'linear-gradient(90deg, #7ec850, #b7e07a)';
+    if (hudCache.timeB !== timeBg) { hudCache.timeB = timeBg; elTimeFill.style.background = timeBg; }
+
+    let line;
+    if (G.state === 'overflow') line = '部長「うわああっ！？」';
+    else if (G.state === 'play' && G.timeLeft <= 5) line = '部長「おい、まだか！喉が乾いたぞ」';
+    else if (!G.pouredEver) line = '部長「おう、一杯頼むよ」';
+    else if (G.flow > 0) line = G.intensity > 0.7 ? '部長「おいおい、勢い良すぎだろ！」' : '部長「おっとっと…」';
+    else if (total > G.target + 0.03) line = '部長「ちょ、入れすぎじゃないか？」';
+    else if (ratio > 0.5 && total > 0.15) line = '部長「泡ばっかりじゃないか…」';
+    else if (Math.abs(total - G.target) <= 0.03) line = '部長「お、いい感じじゃないか」';
+    else if (G.idleT > 2.5) line = '部長「…まだかね？」';
+    else line = '部長「ふむ…」';
+    setIfChanged('boss', elBoss, 'text', line);
+  }
+
+  // ====== 描画 ======
+  function roundRectPath(x, y, w, h, r) {
+    r = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  function drawBackground() {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#3a2216');
+    g.addColorStop(1, '#140b06');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+
+    // 壁の板
+    ctx.fillStyle = 'rgba(0,0,0,0.12)';
+    const slat = Math.max(40, W / 9);
+    for (let x = 0; x < W; x += slat) ctx.fillRect(x, 0, 2, L.bottom);
+
+    // ちょうちんの明かり
+    const lx = W * 0.14, ly = H * 0.2;
+    const rg = ctx.createRadialGradient(lx, ly, 5, lx, ly, Math.max(W, H) * 0.6);
+    rg.addColorStop(0, 'rgba(255,170,80,0.32)');
+    rg.addColorStop(1, 'rgba(255,170,80,0)');
+    ctx.fillStyle = rg;
+    ctx.fillRect(0, 0, W, H);
+
+    // カウンター
+    const cy = L.bottom;
+    const wg = ctx.createLinearGradient(0, cy, 0, H);
+    wg.addColorStop(0, '#7a4822');
+    wg.addColorStop(0.15, '#5c3418');
+    wg.addColorStop(1, '#2e180a');
+    ctx.fillStyle = wg;
+    ctx.fillRect(0, cy, W, H - cy);
+    ctx.fillStyle = 'rgba(255,210,150,0.25)';
+    ctx.fillRect(0, cy, W, 2);
+    ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+    ctx.lineWidth = 1;
+    for (let i = 1; i < 6; i++) {
+      const y = cy + (H - cy) * i / 6;
+      ctx.beginPath();
+      for (let x = 0; x <= W; x += 20) {
+        const yy = y + Math.sin(x * 0.02 + i * 1.7) * 3;
+        if (x === 0) ctx.moveTo(x, yy); else ctx.lineTo(x, yy);
+      }
+      ctx.stroke();
+    }
+
+    // グラスの影
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath();
+    ctx.ellipse(L.cx + 6 * L.s, L.bottom + 3 * L.s, L.gwB / 2 + 8 * L.s, 6 * L.s, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function innerPath() {
+    const t = L.top + 1, b = L.innerBottom;
+    ctx.beginPath();
+    ctx.moveTo(L.cx - innerHalf(t), t);
+    ctx.lineTo(L.cx + innerHalf(t), t);
+    ctx.lineTo(L.cx + innerHalf(b), b);
+    ctx.lineTo(L.cx - innerHalf(b), b);
+    ctx.closePath();
+  }
+
+  function outerClosedPath() {
+    ctx.beginPath();
+    ctx.moveTo(L.cx - L.gwT / 2, L.top);
+    ctx.lineTo(L.cx + L.gwT / 2, L.top);
+    ctx.lineTo(L.cx + L.gwB / 2, L.bottom);
+    ctx.lineTo(L.cx - L.gwB / 2, L.bottom);
+    ctx.closePath();
+  }
+
+  function surf(x) {
+    const amp = (0.6 + 3 * G.intensity) * L.s;
+    return Math.sin(x * 0.07 + G.time * 5) * amp + Math.sin(x * 0.13 - G.time * 3.3) * amp * 0.5;
+  }
+  function bump(x) {
+    return (Math.sin(x * 0.09 + G.time * 1.2) + 0.6 * Math.sin(x * 0.21 - G.time * 0.8)) * 1.6 * L.s;
+  }
+
+  function drawGlassBack() {
+    outerClosedPath();
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.fill();
+  }
+
+  function drawLiquid() {
+    const ib = L.innerBottom;
+    const beerY = yAt(G.beer);
+    const foamY = yAt(G.beer + G.foam);
+    const xl = L.cx - L.gwT / 2 - 4, xr = L.cx + L.gwT / 2 + 4;
+    const step = 4;
+
+    ctx.save();
+    innerPath();
+    ctx.clip();
+
+    // ビール
+    if (G.beer > 0.001) {
+      const gr = ctx.createLinearGradient(0, ib, 0, beerY);
+      gr.addColorStop(0, '#9c5205');
+      gr.addColorStop(0.5, '#dd8710');
+      gr.addColorStop(1, '#f7bd40');
+      ctx.fillStyle = gr;
+      ctx.beginPath();
+      ctx.moveTo(xl, ib + 2);
+      for (let x = xl; x <= xr; x += step) ctx.lineTo(x, beerY + surf(x));
+      ctx.lineTo(xr, ib + 2);
+      ctx.closePath();
+      ctx.fill();
+
+      // 光の帯
+      const hg = ctx.createLinearGradient(L.cx - L.gwT / 2, 0, L.cx + L.gwT / 2, 0);
+      hg.addColorStop(0, 'rgba(255,230,160,0)');
+      hg.addColorStop(0.25, 'rgba(255,230,160,0.22)');
+      hg.addColorStop(0.45, 'rgba(255,230,160,0)');
+      hg.addColorStop(1, 'rgba(80,30,0,0.18)');
+      ctx.fillStyle = hg;
+      ctx.fillRect(xl, beerY + 3, xr - xl, ib - beerY);
+
+      // 液体中の泡粒
+      for (const b of bubbles) {
+        const hw = innerHalf(b.y) - b.r - 1;
+        const x = L.cx + (b.u * 2 - 1) * hw + Math.sin(G.time * 6 + b.ph) * 0.8 * L.s;
+        ctx.beginPath();
+        ctx.arc(x, b.y, b.r, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,240,200,0.35)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,248,225,0.7)';
+        ctx.lineWidth = 0.7;
+        ctx.stroke();
+      }
+    }
+
+    // 泡
+    if (G.foam > 0.0008) {
+      const band = beerY - foamY;
+      const bamp = Math.min(1, band / (6 * L.s));
+      const fg = ctx.createLinearGradient(0, foamY - 4, 0, beerY + 4);
+      fg.addColorStop(0, '#fffef8');
+      fg.addColorStop(0.6, '#fbf2dc');
+      fg.addColorStop(1, '#eed8a8');
+      ctx.fillStyle = fg;
+      ctx.beginPath();
+      ctx.moveTo(xl, foamY - bump(xl) * bamp);
+      for (let x = xl; x <= xr; x += step) ctx.lineTo(x, foamY - bump(x) * bamp);
+      for (let x = xr; x >= xl; x -= step) ctx.lineTo(x, beerY + surf(x));
+      ctx.closePath();
+      ctx.fill();
+
+      // 泡のつぶつぶ
+      if (band > 3) {
+        for (const d of foamDots) {
+          const y = foamY + band * (0.12 + 0.82 * d.v);
+          const hw = innerHalf(y);
+          const x = L.cx + (d.u * 2 - 1) * hw * 0.95;
+          const r = Math.min(d.r * L.s * (1 + 0.18 * Math.sin(G.time * 2 + d.ph)), band * 0.45);
+          if (r < 0.6) continue;
+          ctx.beginPath();
+          ctx.arc(x, y, r, 0, Math.PI * 2);
+          ctx.strokeStyle = 'rgba(200,165,110,0.45)';
+          ctx.lineWidth = 0.8;
+          ctx.stroke();
+          ctx.fillStyle = 'rgba(255,255,255,0.9)';
+          ctx.beginPath();
+          ctx.arc(x - r * 0.35, y - r * 0.35, Math.max(0.5, r * 0.25), 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // 泡とビールの境目
+      if (G.beer > 0.001) {
+        ctx.beginPath();
+        for (let x = xl; x <= xr; x += step) {
+          const y = beerY + surf(x);
+          if (x === xl) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = 'rgba(255,236,190,0.55)';
+        ctx.lineWidth = 2 * L.s;
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawStream() {
+    const se = G.streamEnd;
+    if (!se) return;
+    const s = L.s, inten = G.intensity;
+    const w = (2 + 6 * inten) * s;
+    const ex = se.x + Math.sin(G.time * 30) * 0.8 * s;
+    const cpx = se.mx - (10 + 22 * inten) * s;
+    const cpy = se.my + 8 * s;
+
+    const sg = ctx.createLinearGradient(se.mx, se.my, ex, se.y);
+    sg.addColorStop(0, '#f8c74e');
+    sg.addColorStop(1, '#df8f1a');
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = sg;
+    ctx.lineWidth = w;
+    ctx.beginPath();
+    ctx.moveTo(se.mx, se.my);
+    ctx.quadraticCurveTo(cpx, cpy, ex, se.y);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(255,245,210,0.45)';
+    ctx.lineWidth = Math.max(1, w * 0.3);
+    ctx.beginPath();
+    ctx.moveTo(se.mx - w * 0.2, se.my);
+    ctx.quadraticCurveTo(cpx - w * 0.2, cpy, ex - w * 0.2, se.y);
+    ctx.stroke();
+  }
+
+  function drawGlassFront() {
+    const s = L.s;
+
+    // 結露
+    const liquidTop = yAt(G.beer + G.foam);
+    for (const d of drops) {
+      const y = L.bottom - d.v * L.gh;
+      if (G.beer + G.foam < 0.02 || y < liquidTop) continue;
+      const x = L.cx + d.u * outerHalf(y);
+      ctx.fillStyle = 'rgba(255,255,255,0.28)';
+      ctx.beginPath();
+      ctx.arc(x, y, d.r * s, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 底の厚み
+    ctx.beginPath();
+    ctx.moveTo(L.cx - outerHalf(L.innerBottom), L.innerBottom);
+    ctx.lineTo(L.cx + outerHalf(L.innerBottom), L.innerBottom);
+    ctx.lineTo(L.cx + L.gwB / 2, L.bottom);
+    ctx.lineTo(L.cx - L.gwB / 2, L.bottom);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(255,255,255,0.17)';
+    ctx.fill();
+
+    // ハイライト（左）
+    const t = L.top + 8 * s, b = L.innerBottom - 4 * s;
+    const hw = 6 * s;
+    ctx.beginPath();
+    ctx.moveTo(L.cx - outerHalf(t) + 7 * s, t);
+    ctx.lineTo(L.cx - outerHalf(t) + 7 * s + hw, t);
+    ctx.lineTo(L.cx - outerHalf(b) + 7 * s + hw, b);
+    ctx.lineTo(L.cx - outerHalf(b) + 7 * s, b);
+    ctx.closePath();
+
+    const hg = ctx.createLinearGradient(0, t, 0, b);
+    hg.addColorStop(0, 'rgba(255,255,255,0.45)');
+    hg.addColorStop(1, 'rgba(255,255,255,0.05)');
+    ctx.fillStyle = hg;
+    ctx.fill();
+    // ハイライト（右・細）
+    ctx.beginPath();
+    ctx.moveTo(L.cx + outerHalf(t) - 6 * s, t);
+    ctx.lineTo(L.cx + outerHalf(b) - 6 * s, b);
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.lineWidth = 2 * s;
+    ctx.stroke();
+
+    // 輪郭
+    ctx.beginPath();
+    ctx.moveTo(L.cx - L.gwT / 2, L.top);
+    ctx.lineTo(L.cx - L.gwB / 2, L.bottom);
+    ctx.lineTo(L.cx + L.gwB / 2, L.bottom);
+    ctx.lineTo(L.cx + L.gwT / 2, L.top);
+    ctx.strokeStyle = 'rgba(255,255,255,0.65)';
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+
+    // 飲み口
+    ctx.beginPath();
+    ctx.ellipse(L.cx, L.top, L.gwT / 2, 3 * s, 0, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  function drawTargetLine() {
+    const y = yAt(G.target);
+    const hw = innerHalf(y);
+    ctx.save();
+    ctx.setLineDash([7 * L.s, 5 * L.s]);
+    ctx.strokeStyle = 'rgba(255,80,80,0.95)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(L.cx - hw, y);
+    ctx.lineTo(L.cx + hw, y);
+    ctx.stroke();
+    ctx.restore();
+
+    const ox = L.cx - outerHalf(y) - 6 * L.s;
+    ctx.fillStyle = '#ff6a6a';
+    ctx.beginPath();
+    ctx.moveTo(ox, y);
+    ctx.lineTo(ox - 9 * L.s, y - 6 * L.s);
+    ctx.lineTo(ox - 9 * L.s, y + 6 * L.s);
+    ctx.closePath();
+    ctx.fill();
+    ctx.font = '800 ' + Math.round(12 * L.s + 2) + 'px ' + FONT;
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('目標', ox - 12 * L.s, y);
+  }
+
+  function drawSplashes() {
+    for (const p of splashes) {
+      const a = clamp(p.life / p.max, 0, 1);
+      ctx.fillStyle = 'rgba(' + p.c + ',' + (0.85 * a).toFixed(3) + ')';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawBottle() {
+    const m = L.m;
+    const th = tiltAngle();
+    const bw = 0.24 * m, nw = 0.085 * m;
+    ctx.save();
+    ctx.translate(L.px, L.py);
+    ctx.rotate(th);
+
+    // 本体
+    ctx.beginPath();
+    ctx.moveTo(-nw, -m + 0.05 * m);
+    ctx.lineTo(-nw, -0.5 * m);
+    ctx.quadraticCurveTo(-nw, -0.28 * m, -bw, -0.12 * m);
+    ctx.lineTo(-bw, 0.86 * m);
+    ctx.quadraticCurveTo(-bw, 0.92 * m, -bw + 0.06 * m, 0.92 * m);
+    ctx.lineTo(bw - 0.06 * m, 0.92 * m);
+    ctx.quadraticCurveTo(bw, 0.92 * m, bw, 0.86 * m);
+    ctx.lineTo(bw, -0.12 * m);
+    ctx.quadraticCurveTo(nw, -0.28 * m, nw, -0.5 * m);
+    ctx.lineTo(nw, -m + 0.05 * m);
+    ctx.closePath();
+    const g = ctx.createLinearGradient(-bw, 0, bw, 0);
+    g.addColorStop(0, '#2a1204');
+    g.addColorStop(0.35, '#6e3812');
+    g.addColorStop(0.6, '#4a230a');
+    g.addColorStop(1, '#1d0c02');
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // 首の金色フィルム
+    const fg = ctx.createLinearGradient(-nw, 0, nw, 0);
+    fg.addColorStop(0, '#8a6a1c');
+    fg.addColorStop(0.45, '#f4d77a');
+    fg.addColorStop(1, '#7a5a12');
+    ctx.fillStyle = fg;
+    ctx.fillRect(-nw, -m + 0.07 * m, nw * 2, 0.24 * m);
+
+    // 口
+    ctx.fillStyle = '#3a1a06';
+    roundRectPath(-nw * 1.18, -m, nw * 2.36, 0.07 * m, 0.02 * m);
+    ctx.fill();
+
+    // ラベル
+    const lx = -bw + 0.025 * m, lw = 2 * bw - 0.05 * m, ly = 0.18 * m, lh = 0.44 * m;
+    ctx.fillStyle = '#f4ecd6';
+    ctx.fillRect(lx, ly, lw, lh);
+    ctx.fillStyle = '#c0281e';
+    ctx.fillRect(lx, ly, lw, 0.05 * m);
+    ctx.fillRect(lx, ly + lh - 0.05 * m, lw, 0.05 * m);
+    ctx.fillStyle = '#c0281e';
+    ctx.font = '900 ' + Math.round(0.22 * m) + 'px ' + FONT;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('生', 0, ly + lh * 0.42);
+    ctx.fillStyle = '#3a2216';
+    ctx.font = '800 ' + Math.max(7, Math.round(0.07 * m)) + 'px ' + FONT;
+    ctx.fillText('ビール', 0, ly + lh * 0.76);
+
+    // 光沢
+    ctx.fillStyle = 'rgba(255,255,255,0.16)';
+    ctx.fillRect(-bw * 0.62, -0.06 * m, 0.045 * m, 0.88 * m);
+
+    ctx.restore();
+  }
+
+  function drawOverflowPuddle(p) {
+    if (p <= 0.55) return;
+    const pr = clamp((p - 0.55) / 0.45, 0, 1);
+    const s = L.s;
+    ctx.fillStyle = 'rgba(235,160,40,0.55)';
+    ctx.beginPath();
+    ctx.ellipse(L.cx, L.bottom + 3 * s, L.gwB / 2 + 10 * s + pr * 55 * s, 5 * s + pr * 4 * s, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,248,230,0.6)';
+    ctx.beginPath();
+    ctx.ellipse(L.cx - 10 * s, L.bottom + 2 * s, (L.gwB / 2) * 0.8 + pr * 30 * s, 3 * s, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawOverflow(p) {
+    const s = L.s, top = L.top;
+    // 盛り上がる泡
+    ctx.fillStyle = '#fff8e6';
+    ctx.beginPath();
+    ctx.ellipse(L.cx, top, L.gwT / 2 + 3 * s, 5 * s + 9 * s * Math.min(1, p * 3), 0, Math.PI, 0);
+    ctx.fill();
+    // 側面を流れ落ちる泡
+    const len = Math.min(1, p * 1.3) * (L.gh + 6 * s);
+
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      const steps = 24;
+      for (let i = 0; i <= steps; i++) {
+        const y = top + len * i / steps;
+        const x = L.cx + side * (outerHalf(y) + 3 * s + 2 * s * Math.sin(y * 0.15 + G.time * 4));
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = 'rgba(255,246,225,0.95)';
+      ctx.lineWidth = 7 * s;
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(240,170,50,0.75)';
+      ctx.lineWidth = 2.5 * s;
+      ctx.stroke();
+    }
+    // 文字
+    if (G.state === 'overflow') {
+      const shake = (1 - Math.min(1, p)) * 6;
+      const tx = L.cx + rand(-shake, shake);
+      const ty = L.top + L.gh * 0.38 + rand(-shake, shake);
+      ctx.font = '900 ' + Math.round(40 * s + 6) + 'px ' + FONT;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineWidth = 7;
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = '#fff';
+      ctx.strokeText('あふれた！！', tx, ty);
+      ctx.fillStyle = '#e8261a';
+      ctx.fillText('あふれた！！', tx, ty);
+    }
+  }
+
+  function drawHint() {
+    if (G.state !== 'play' || G.pouredEver) return;
+    const a = 0.55 + 0.45 * Math.sin(G.time * 4);
+    ctx.font = '800 ' + Math.round(15 * L.s + 4) + 'px ' + FONT;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const y = L.innerBottom - L.innerH * 0.45;
+    ctx.lineWidth = 5;
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(0,0,0,' + (0.6 * a).toFixed(3) + ')';
+    ctx.strokeText('画面を長押しで注ぐ', L.cx, y);
+    ctx.fillStyle = 'rgba(255,255,255,' + a.toFixed(3) + ')';
+    ctx.fillText('画面を長押しで注ぐ', L.cx, y);
+  }
+
+  function draw() {
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    drawBackground();
+    const ovP = G.state === 'overflow' ? G.overflowT / OVERFLOW_TIME : (G.overflowed ? 1 : 0);
+    if (G.overflowed) drawOverflowPuddle(ovP);
+    drawGlassBack();
+    drawLiquid();
+    drawStream();
+    drawGlassFront();
+    drawTargetLine();
+    drawSplashes();
+    drawBottle();
+    if (G.overflowed) drawOverflow(ovP);
+    drawHint();
+  }
+
+  // ====== メインループ（1本だけ） ======
+  let lastT = performance.now();
+  function frame(now) {
+    let dt = (now - lastT) / 1000;
+    lastT = now;
+    if (!(dt > 0)) dt = 0;
+    if (dt > 0.05) dt = 0.05;
+    G.time += dt;
+    update(dt);
+    draw();
+    updateHUD();
+    updateResultAnim(dt);
+    requestAnimationFrame(frame);
+  }
+
+  // ====== 入力 ======
+  cv.addEventListener('pointerdown', (e) => {
+    if (G.state !== 'play') return;
+    e.preventDefault();
+    if (activePointer !== null && activePointer !== e.pointerId) return;
+    activePointer = e.pointerId;
+    G.holding = true;
+    try { cv.setPointerCapture(e.pointerId); } catch (err) { /* 無視 */ }
+  });
+  const release = (e) => {
+    if (activePointer !== null && e && e.pointerId !== activePointer) return;
+    G.holding = false;
+    activePointer = null;
+  };
+  cv.addEventListener('pointerup', release);
+  cv.addEventListener('pointercancel', release);
+  cv.addEventListener('lostpointercapture', release);
+
+  window.addEventListener('blur', () => { G.holding = false; activePointer = null; });
+  document.addEventListener('visibilitychange', () => {
+    G.holding = false;
+    activePointer = null;
+    lastT = performance.now();
+  });
+  document.addEventListener('contextmenu', (e) => e.preventDefault());
+  document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+  document.addEventListener('gesturestart', (e) => e.preventDefault());
+  document.addEventListener('selectstart', (e) => e.preventDefault());
+
+  // PCではスペースキーでも注げる
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && G.state === 'play') {
+      e.preventDefault();
+      if (!e.repeat) G.holding = true;
+    }
+  });
+  window.addEventListener('keyup', (e) => {
+    if (e.code === 'Space' && G.state === 'play') {
+      e.preventDefault();
+      G.holding = false;
+    }
+  });
+
+  // ボタン
+  $('startBtn').addEventListener('click', () => { if (G.state === 'title') startGame(); });
+  elDone.addEventListener('pointerdown', (e) => e.stopPropagation());
+  elDone.addEventListener('click', () => { if (G.state === 'play') finish(false); });
+  $('retryBtn').addEventListener('click', () => { if (G.state === 'result') startGame(); });
+  $('toTitleBtn').addEventListener('click', () => { if (G.state === 'result') goTitle(); });
+
+  $('shareBtn').addEventListener('click', () => {
+    if (!G.shareHref) return;
+    window.open(G.shareHref, '_blank', 'noopener,noreferrer');
+  });
+
+  window.addEventListener('resize', resize);
+  window.addEventListener('orientationchange', () => setTimeout(resize, 150));
+
+  // ====== 起動 ======
+  resize();
+  resetGame();
+  setScreen('title');
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
